@@ -132,6 +132,7 @@
         const HEIGHT = canvas.height;
         const FLOOR = 420;
         const PLAYER_SIZE = 40;
+        const HOME_BUTTON = { x: 790, y: 52, w: 88, h: 32 };
         const LEVEL_ONE_LENGTH = 7400;
         const LEVEL_TWO_LENGTH = 5200;
 
@@ -172,10 +173,10 @@
           { type: "coin", x: 2770, y: 180 },
           { type: "coin", x: 4200, y: 190 },
           { type: "portal", mode: "tram", x: 1750 },
-          { type: "tramBlock", x: 2550, y: 280, w: 34, h: 140 },
-          { type: "tramBlock", x: 3250, y: 180, w: 34, h: 160 },
-          { type: "tramBlock", x: 4200, y: 270, w: 34, h: 150 },
-          { type: "tramBlock", x: 4800, y: 180, w: 34, h: 160 }
+          { type: "tramBlock", x: 2550, y: 0, w: 34, h: 85 },
+          { type: "tramBlock", x: 3250, y: 335, w: 34, h: 85 },
+          { type: "tramBlock", x: 4200, y: 0, w: 34, h: 85 },
+          { type: "tramBlock", x: 4800, y: 335, w: 34, h: 85 }
         ];
 
         const colors = {
@@ -185,6 +186,7 @@
         let objects = levelOneObjects;
         let level = 1;
         let selectedLevel = 1;
+        let tramAtTop = false;
         let levelLength = LEVEL_ONE_LENGTH;
         const player = { x: 120, y: 380, w: PLAYER_SIZE, h: PLAYER_SIZE, vy: 0, vx: 0, rotation: 0 };
         let state = "menu";
@@ -216,6 +218,7 @@
           coins = 0;
           waveY = 250;
           gravityDirection = 1;
+          tramAtTop = false;
           player.x = 120;
           player.y = 380;
           player.vy = 0;
@@ -232,6 +235,7 @@
           mode = "cube";
           waveY = 250;
           gravityDirection = 1;
+          tramAtTop = false;
           player.y = FLOOR - player.h;
           player.vy = 0;
           player.vx = 0;
@@ -262,14 +266,21 @@
           } else if (mode === "ball" && player.y >= FLOOR - player.h - 0.1) {
             player.vy = -11;
             player.vx = 3.5;
-          } else if (mode === "tram" && player.y >= FLOOR - player.h - 0.1) {
-            player.vy = -13;
+          } else if (mode === "tram") {
+            tramAtTop = !tramAtTop;
+            player.y = tramAtTop ? 18 : FLOOR - player.h;
+            player.vy = 0;
           } else if (mode === "gravity") {
             gravityDirection *= -1;
           }
         }
 
         function onKeyDown(event) {
+          if (state !== "menu" && (event.code === "Escape" || event.code === "KeyH")) {
+            event.preventDefault();
+            goHome();
+            return;
+          }
           if (state === "menu" && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
             event.preventDefault();
             selectedLevel = selectedLevel === 1 ? 2 : 1;
@@ -294,16 +305,26 @@
         canvas.addEventListener("pointerdown", event => {
           event.preventDefault();
           canvas.focus();
+          const bounds = canvas.getBoundingClientRect();
+          const x = (event.clientX - bounds.left) * WIDTH / bounds.width;
+          const y = (event.clientY - bounds.top) * HEIGHT / bounds.height;
+          if (state !== "menu" &&
+              x >= HOME_BUTTON.x && x <= HOME_BUTTON.x + HOME_BUTTON.w &&
+              y >= HOME_BUTTON.y && y <= HOME_BUTTON.y + HOME_BUTTON.h) {
+            goHome();
+            return;
+          }
           if (state === "menu") {
-            const bounds = canvas.getBoundingClientRect();
-            const x = (event.clientX - bounds.left) * WIDTH / bounds.width;
-            const y = (event.clientY - bounds.top) * HEIGHT / bounds.height;
             if (y >= 226 && y <= 290 && x >= 270 && x <= 444) {
               selectedLevel = 1;
               return;
             }
             if (y >= 226 && y <= 290 && x >= 456 && x <= 630) {
               selectedLevel = 2;
+              return;
+            }
+            if (y >= 307 && y <= 362 && x >= 335 && x <= 565) {
+              startOrJump();
               return;
             }
           }
@@ -316,6 +337,13 @@
           return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
         }
 
+        function goHome() {
+          reset();
+          state = "menu";
+          holding = false;
+          keyHeld = false;
+        }
+
         function update(delta) {
           if (state !== "playing") return;
           const step = Math.min(delta, 2.2);
@@ -324,7 +352,7 @@
           const previousPlayerY = player.y;
           best = Math.max(best, Math.floor((level === 2 ? LEVEL_ONE_LENGTH : 0) + camera));
 
-          if (mode === "cube" || mode === "tram") {
+          if (mode === "cube") {
             player.vy += 0.7 * step;
             player.y += player.vy * step;
             if (player.y > FLOOR - player.h) {
@@ -332,6 +360,10 @@
               player.vy = 0;
             }
             player.rotation += 6 * step;
+          } else if (mode === "tram") {
+            player.y = tramAtTop ? 18 : FLOOR - player.h;
+            player.vy = 0;
+            player.rotation += 1.5 * step;
           } else if (mode === "wave") {
             waveY += (holding ? -5 : 5) * step;
             if (waveY < 8 || waveY > HEIGHT - 25) state = "over";
@@ -389,7 +421,7 @@
               player.vy = -18;
             }
 
-            if ((mode === "cube" || mode === "tram") && object.type === "jumpPad" &&
+            if (mode === "cube" && object.type === "jumpPad" &&
                 player.vy >= 0 &&
                 (previousPlayerY + player.h <= object.y + 8 || player.y >= FLOOR - player.h - 0.1) &&
                 overlaps(player.x, player.y, player.w, player.h, screenX - 20, object.y, 40, 15)) {
@@ -404,7 +436,12 @@
               if (mode === "ship") { player.vy = 0; player.y = 250; }
               if (mode === "ball") { player.vy = 0; player.vx = 2; player.y = FLOOR - player.h; }
               if (mode === "gravity") { player.vy = 0; player.y = 200; gravityDirection = 1; }
-              if (mode === "tram") { player.vy = 0; player.vx = 0; player.y = FLOOR - player.h; }
+              if (mode === "tram") {
+                player.vy = 0;
+                player.vx = 0;
+                tramAtTop = false;
+                player.y = FLOOR - player.h;
+              }
               messageTimer = 80;
             }
 
@@ -695,6 +732,21 @@
           ctx.fill();
         }
 
+        function drawHomeButton() {
+          ctx.save();
+          roundedRect(HOME_BUTTON.x, HOME_BUTTON.y, HOME_BUTTON.w, HOME_BUTTON.h, 8);
+          ctx.fillStyle = "#111c30";
+          ctx.fill();
+          ctx.strokeStyle = "#9bb0cc88";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.fillStyle = "#e8f1ff";
+          ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("⌂  HOME", HOME_BUTTON.x + HOME_BUTTON.w / 2, HOME_BUTTON.y + 21);
+          ctx.restore();
+        }
+
         function drawOverlay(title, subtitle, color) {
           ctx.fillStyle = "#050916bd";
           ctx.fillRect(0, 0, WIDTH, HEIGHT);
@@ -795,6 +847,19 @@
           ctx.globalAlpha = 0.56;
           ctx.fillRect(0, FLOOR, WIDTH, 2);
           ctx.globalAlpha = 1;
+          if (mode === "tram" && state === "playing") {
+            ctx.save();
+            ctx.strokeStyle = "#ff8c5680";
+            ctx.lineWidth = 2;
+            ctx.setLineDash([9, 8]);
+            for (const y of [74, 365]) {
+              ctx.beginPath();
+              ctx.moveTo(0, y);
+              ctx.lineTo(WIDTH, y);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
           drawObjects();
           drawPlayer();
           drawHud();
@@ -802,6 +867,12 @@
           ctx.fillStyle = "#afc0da";
           ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
           ctx.fillText(`LEVEL ${level}`, 24, 76);
+          if (mode === "tram" && state === "playing") {
+            ctx.textAlign = "center";
+            ctx.fillStyle = colors.tram;
+            ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText("SPACE / CLICK: SWITCH TRACK", WIDTH / 2, 82);
+          }
 
           if (messageTimer > 0 && state === "playing") {
             ctx.textAlign = "center";
@@ -812,6 +883,7 @@
           if (state === "over") drawOverlay("RUN OVER", "Click or press SPACE to try again", "#ff557a");
           if (state === "levelTransition") drawOverlay("LEVEL ONE CLEAR", "Click or press SPACE to start Level Two", "#65ffcc");
           if (state === "won") drawOverlay("ALL LEVELS CLEAR", `You made it through with ${coins} coin${coins === 1 ? "" : "s"} · click to play again`, "#65ffcc");
+          drawHomeButton();
         }
 
         function frame(time) {
