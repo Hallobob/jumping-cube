@@ -184,6 +184,7 @@
         };
         let objects = levelOneObjects;
         let level = 1;
+        let selectedLevel = 1;
         let levelLength = LEVEL_ONE_LENGTH;
         const player = { x: 120, y: 380, w: PLAYER_SIZE, h: PLAYER_SIZE, vy: 0, vx: 0, rotation: 0 };
         let state = "menu";
@@ -241,7 +242,8 @@
         function startOrJump() {
           if (state === "menu") {
             reset();
-            state = "playing";
+            if (selectedLevel === 2) beginLevelTwo();
+            else state = "playing";
             return;
           }
           if (state === "levelTransition") {
@@ -268,6 +270,11 @@
         }
 
         function onKeyDown(event) {
+          if (state === "menu" && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
+            event.preventDefault();
+            selectedLevel = selectedLevel === 1 ? 2 : 1;
+            return;
+          }
           if (event.code !== "Space" && event.code !== "ArrowUp") return;
           event.preventDefault();
           holding = true;
@@ -287,6 +294,19 @@
         canvas.addEventListener("pointerdown", event => {
           event.preventDefault();
           canvas.focus();
+          if (state === "menu") {
+            const bounds = canvas.getBoundingClientRect();
+            const x = (event.clientX - bounds.left) * WIDTH / bounds.width;
+            const y = (event.clientY - bounds.top) * HEIGHT / bounds.height;
+            if (y >= 226 && y <= 290 && x >= 270 && x <= 444) {
+              selectedLevel = 1;
+              return;
+            }
+            if (y >= 226 && y <= 290 && x >= 456 && x <= 630) {
+              selectedLevel = 2;
+              return;
+            }
+          }
           holding = true;
           startOrJump();
         });
@@ -706,16 +726,40 @@
           ctx.font = "800 20px ui-sans-serif, system-ui, sans-serif";
           ctx.fillText("DELUXE", WIDTH / 2, 177);
 
-          roundedRect(335, 218, 230, 58, 13);
+          ctx.fillStyle = "#a9bad3";
+          ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("CHOOSE YOUR LEVEL", WIDTH / 2, 210);
+
+          const levelCards = [
+            { number: 1, x: 270, color: colors.cube, detail: "FIVE WORLDS" },
+            { number: 2, x: 456, color: colors.tram, detail: "JUMP PADS + TRAM" }
+          ];
+          for (const card of levelCards) {
+            const selected = selectedLevel === card.number;
+            roundedRect(card.x, 226, 174, 64, 10);
+            ctx.fillStyle = selected ? `${card.color}24` : "#ffffff08";
+            ctx.fill();
+            ctx.lineWidth = selected ? 2 : 1;
+            ctx.strokeStyle = selected ? card.color : "#ffffff2b";
+            ctx.stroke();
+            ctx.fillStyle = selected ? card.color : "#c2d0e6";
+            ctx.font = "800 14px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText(`LEVEL ${card.number}`, card.x + 87, 251);
+            ctx.fillStyle = "#c2d0e6";
+            ctx.font = "700 9px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText(card.detail, card.x + 87, 272);
+          }
+
+          roundedRect(335, 307, 230, 55, 13);
           ctx.fillStyle = "#65ffcc";
           ctx.fill();
           ctx.fillStyle = "#071511";
           ctx.font = "900 17px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("START RUN", WIDTH / 2, 254);
+          ctx.fillText(`PLAY LEVEL ${selectedLevel}`, WIDTH / 2, 341);
 
           ctx.fillStyle = "#c2d0e6";
           ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("Click or press SPACE to begin", WIDTH / 2, 310);
+          ctx.fillText("Click PLAY or press SPACE · ← / → to choose", WIDTH / 2, 390);
           const labels = [
             ["CUBE", colors.cube], ["WAVE", colors.wave], ["SHIP", colors.ship],
             ["BALL", colors.ball], ["GRAVITY", colors.gravity], ["TRAM", colors.tram]
@@ -724,18 +768,18 @@
           for (const [label, color] of labels) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, 371, 4, 0, Math.PI * 2);
+            ctx.arc(x, 421, 4, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = "#c2d0e6";
             ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
             ctx.textAlign = "left";
-            ctx.fillText(label, x + 10, 375);
+            ctx.fillText(label, x + 10, 425);
             x += label === "GRAVITY" ? 94 : 74;
           }
           ctx.textAlign = "center";
           ctx.fillStyle = "#8192ae";
           ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("Two levels · jump pads launch you high · watch out for the spikes.", WIDTH / 2, 423);
+          ctx.fillText("Jump pads launch you high · watch out for spikes.", WIDTH / 2, 466);
         }
 
         function draw() {
