@@ -111,14 +111,14 @@
     <main class="game-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark">↗</span> Jumping Cube <span class="accent">Deluxe</span></div>
-        <div class="top-note">A neon run through five worlds</div>
+        <div class="top-note">Two levels · six ways to move</div>
       </header>
       <div class="screen">
         <canvas id="game" width="900" height="500" tabindex="0" aria-label="Jumping Cube Deluxe game. Press Space or click to play and jump."></canvas>
       </div>
       <footer class="bottom-bar">
         <span><strong>SPACE</strong> / <strong>CLICK</strong> to jump · hold to fly</span>
-        <span>Collect <strong class="accent">coins</strong> · avoid the spikes</span>
+        <span>Hit <strong class="accent">jump pads</strong> · avoid the spikes</span>
       </footer>
     </main>
 
@@ -132,9 +132,10 @@
         const HEIGHT = canvas.height;
         const FLOOR = 420;
         const PLAYER_SIZE = 40;
-        const LEVEL_LENGTH = 7400;
+        const LEVEL_ONE_LENGTH = 7400;
+        const LEVEL_TWO_LENGTH = 5200;
 
-        const objects = [
+        const levelOneObjects = [
           { type: "spike", x: 500 }, { type: "spike", x: 800 },
           { type: "spike", x: 1300 }, { type: "spike", x: 2000 },
           { type: "spike", x: 2700 },
@@ -157,10 +158,33 @@
           { type: "gravityBlock", x: 6600, y: 120, w: 60, h: 30 }
         ];
 
+        const levelTwoObjects = [
+          { type: "spike", x: 450 }, { type: "spike", x: 1080 },
+          { type: "spike", x: 1420 }, { type: "spike", x: 2300 },
+          { type: "spike", x: 3000 }, { type: "spike", x: 3900 },
+          { type: "jumpPad", x: 760, y: 405 },
+          { type: "jumpPad", x: 1250, y: 405 },
+          { type: "jumpPad", x: 2100, y: 405 },
+          { type: "jumpPad", x: 3500, y: 405 },
+          { type: "jumpPad", x: 4450, y: 405 },
+          { type: "coin", x: 790, y: 245 },
+          { type: "coin", x: 1670, y: 200 },
+          { type: "coin", x: 2770, y: 180 },
+          { type: "coin", x: 4200, y: 190 },
+          { type: "portal", mode: "tram", x: 1750 },
+          { type: "tramBlock", x: 2550, y: 280, w: 34, h: 140 },
+          { type: "tramBlock", x: 3250, y: 180, w: 34, h: 160 },
+          { type: "tramBlock", x: 4200, y: 270, w: 34, h: 150 },
+          { type: "tramBlock", x: 4800, y: 180, w: 34, h: 160 }
+        ];
+
         const colors = {
           cube: "#65ffcc", wave: "#55eaff", ship: "#ffbd59",
-          ball: "#ff70b7", gravity: "#d68aff"
+          ball: "#ff70b7", gravity: "#d68aff", tram: "#ff8c56"
         };
+        let objects = levelOneObjects;
+        let level = 1;
+        let levelLength = LEVEL_ONE_LENGTH;
         const player = { x: 120, y: 380, w: PLAYER_SIZE, h: PLAYER_SIZE, vy: 0, vx: 0, rotation: 0 };
         let state = "menu";
         let mode = "cube";
@@ -183,6 +207,9 @@
         }
 
         function reset() {
+          level = 1;
+          levelLength = LEVEL_ONE_LENGTH;
+          objects = levelOneObjects;
           camera = 0;
           mode = "cube";
           coins = 0;
@@ -193,13 +220,32 @@
           player.vy = 0;
           player.vx = 0;
           player.rotation = 0;
-          objects.forEach(object => { object.collected = false; });
+          [...levelOneObjects, ...levelTwoObjects].forEach(object => { object.collected = false; });
+        }
+
+        function beginLevelTwo() {
+          level = 2;
+          levelLength = LEVEL_TWO_LENGTH;
+          objects = levelTwoObjects;
+          camera = 0;
+          mode = "cube";
+          waveY = 250;
+          gravityDirection = 1;
+          player.y = FLOOR - player.h;
+          player.vy = 0;
+          player.vx = 0;
+          player.rotation = 0;
+          state = "playing";
         }
 
         function startOrJump() {
           if (state === "menu") {
             reset();
             state = "playing";
+            return;
+          }
+          if (state === "levelTransition") {
+            beginLevelTwo();
             return;
           }
           if (state === "over" || state === "won") {
@@ -214,6 +260,8 @@
           } else if (mode === "ball" && player.y >= FLOOR - player.h - 0.1) {
             player.vy = -11;
             player.vx = 3.5;
+          } else if (mode === "tram" && player.y >= FLOOR - player.h - 0.1) {
+            player.vy = -13;
           } else if (mode === "gravity") {
             gravityDirection *= -1;
           }
@@ -253,9 +301,10 @@
           const step = Math.min(delta, 2.2);
           camera += 4 * step;
           messageTimer = Math.max(0, messageTimer - delta);
-          best = Math.max(best, Math.floor(camera));
+          const previousPlayerY = player.y;
+          best = Math.max(best, Math.floor((level === 2 ? LEVEL_ONE_LENGTH : 0) + camera));
 
-          if (mode === "cube") {
+          if (mode === "cube" || mode === "tram") {
             player.vy += 0.7 * step;
             player.y += player.vy * step;
             if (player.y > FLOOR - player.h) {
@@ -320,12 +369,22 @@
               player.vy = -18;
             }
 
+            if ((mode === "cube" || mode === "tram") && object.type === "jumpPad" &&
+                player.vy >= 0 &&
+                (previousPlayerY + player.h <= object.y + 8 || player.y >= FLOOR - player.h - 0.1) &&
+                overlaps(player.x, player.y, player.w, player.h, screenX - 20, object.y, 40, 15)) {
+              player.y = object.y - player.h;
+              player.vy = -19;
+              object.bounceTimer = 12;
+            }
+
             if (object.type === "portal" && Math.abs(screenX - player.x) < 30 && mode !== object.mode) {
               mode = object.mode;
               if (mode === "wave") waveY = player.y + player.h / 2;
               if (mode === "ship") { player.vy = 0; player.y = 250; }
               if (mode === "ball") { player.vy = 0; player.vx = 2; player.y = FLOOR - player.h; }
               if (mode === "gravity") { player.vy = 0; player.y = 200; gravityDirection = 1; }
+              if (mode === "tram") { player.vy = 0; player.vx = 0; player.y = FLOOR - player.h; }
               messageTimer = 80;
             }
 
@@ -342,6 +401,7 @@
                 overlaps(player.x, waveY, 25, 20, screenX, object.y, 50, 50)) state = "over";
 
             if ((object.type === "shipBlock" && mode === "ship") ||
+                (object.type === "tramBlock" && mode === "tram") ||
                 (object.type === "gravityBlock" && mode === "gravity")) {
               if (overlaps(player.x, player.y, player.w, player.h, screenX, object.y, object.w, object.h)) {
                 state = "over";
@@ -366,9 +426,9 @@
             }
           }
 
-          if (camera >= LEVEL_LENGTH) {
-            state = "won";
-            saveBest();
+          if (camera >= levelLength) {
+            state = level === 1 ? "levelTransition" : "won";
+            if (state === "won") saveBest();
           }
           if (state === "over") saveBest();
         }
@@ -478,10 +538,23 @@
               ctx.restore();
             } else if (object.type === "portal") {
               drawPortal(x, object.mode);
+            } else if (object.type === "jumpPad") {
+              const bounce = object.bounceTimer > 0;
+              object.bounceTimer = Math.max(0, (object.bounceTimer || 0) - 1);
+              ctx.save();
+              ctx.shadowColor = "#65ffcc";
+              ctx.shadowBlur = 16;
+              ctx.fillStyle = "#65ffcc";
+              roundedRect(x - 20, object.y + (bounce ? 5 : 0), 40, bounce ? 9 : 15, 5);
+              ctx.fill();
+              ctx.fillStyle = "#eafff8";
+              ctx.fillRect(x - 11, object.y + 3 + (bounce ? 5 : 0), 22, 3);
+              ctx.restore();
             } else {
               const palette = {
                 waveBlock: "#db6fff", shipBlock: "#ab82ff",
-                ballBlock: "#59baff", gravityBlock: "#d674ff"
+                ballBlock: "#59baff", gravityBlock: "#d674ff",
+                tramBlock: "#ff8c56"
               };
               const width = object.w || 50;
               const height = object.h || 50;
@@ -547,6 +620,24 @@
             ctx.beginPath();
             ctx.arc(-6, -7, 5, 0, Math.PI * 2);
             ctx.fill();
+          } else if (mode === "tram") {
+            ctx.fillStyle = "#ff8c56";
+            roundedRect(-21, -16, 42, 26, 6);
+            ctx.fill();
+            ctx.fillStyle = "#fff1df";
+            roundedRect(-12, -11, 12, 9, 2);
+            ctx.fill();
+            ctx.fillStyle = "#513020";
+            ctx.beginPath();
+            ctx.arc(-12, 13, 5, 0, Math.PI * 2);
+            ctx.arc(13, 13, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = "#ffc18f";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-26, 20);
+            ctx.lineTo(26, 20);
+            ctx.stroke();
           } else {
             ctx.rotate(player.rotation * Math.PI / 180);
             ctx.fillRect(-20, -20, 40, 40);
@@ -579,7 +670,7 @@
           roundedRect(250, 22, 400, 7, 4);
           ctx.fillStyle = "#ffffff22";
           ctx.fill();
-          roundedRect(250, 22, Math.max(8, 400 * Math.min(camera / LEVEL_LENGTH, 1)), 7, 4);
+          roundedRect(250, 22, Math.max(8, 400 * Math.min(camera / levelLength, 1)), 7, 4);
           ctx.fillStyle = "#65ffcc";
           ctx.fill();
         }
@@ -624,12 +715,12 @@
 
           ctx.fillStyle = "#c2d0e6";
           ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("Click or press SPACE to begin", WIDTH / 2, 326);
+          ctx.fillText("Click or press SPACE to begin", WIDTH / 2, 310);
           const labels = [
             ["CUBE", colors.cube], ["WAVE", colors.wave], ["SHIP", colors.ship],
-            ["BALL", colors.ball], ["GRAVITY", colors.gravity]
+            ["BALL", colors.ball], ["GRAVITY", colors.gravity], ["TRAM", colors.tram]
           ];
-          let x = WIDTH / 2 - 180;
+          let x = WIDTH / 2 - 215;
           for (const [label, color] of labels) {
             ctx.fillStyle = color;
             ctx.beginPath();
@@ -644,7 +735,7 @@
           ctx.textAlign = "center";
           ctx.fillStyle = "#8192ae";
           ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("Every world has its own way to move. Keep your eyes on the spikes.", WIDTH / 2, 423);
+          ctx.fillText("Two levels · jump pads launch you high · watch out for the spikes.", WIDTH / 2, 423);
         }
 
         function draw() {
@@ -656,13 +747,17 @@
 
           ctx.fillStyle = "#202c41";
           ctx.fillRect(0, FLOOR, WIDTH, HEIGHT - FLOOR);
-          ctx.fillStyle = "#65ffcc";
+          ctx.fillStyle = level === 2 ? "#ff8c56" : "#65ffcc";
           ctx.globalAlpha = 0.56;
           ctx.fillRect(0, FLOOR, WIDTH, 2);
           ctx.globalAlpha = 1;
           drawObjects();
           drawPlayer();
           drawHud();
+          ctx.textAlign = "left";
+          ctx.fillStyle = "#afc0da";
+          ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText(`LEVEL ${level}`, 24, 76);
 
           if (messageTimer > 0 && state === "playing") {
             ctx.textAlign = "center";
@@ -671,7 +766,8 @@
             ctx.fillText(`${mode.toUpperCase()} MODE`, WIDTH / 2, 81);
           }
           if (state === "over") drawOverlay("RUN OVER", "Click or press SPACE to try again", "#ff557a");
-          if (state === "won") drawOverlay("LEVEL CLEAR", `You made it through with ${coins} coin${coins === 1 ? "" : "s"} · click to play again`, "#65ffcc");
+          if (state === "levelTransition") drawOverlay("LEVEL ONE CLEAR", "Click or press SPACE to start Level Two", "#65ffcc");
+          if (state === "won") drawOverlay("ALL LEVELS CLEAR", `You made it through with ${coins} coin${coins === 1 ? "" : "s"} · click to play again`, "#65ffcc");
         }
 
         function frame(time) {
