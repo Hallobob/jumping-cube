@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080b17">
+    <title>Jumping Cube Deluxe</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #080b17;
+        color: #edf5ff;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 28px 16px;
+        overflow-x: hidden;
+        background:
+          radial-gradient(ellipse at 50% 0%, #14264a 0, transparent 48%),
+          radial-gradient(ellipse at 8% 85%, #10223a 0, transparent 34%),
+          #080b17;
+      }
+
+      .game-shell { width: min(100%, 980px); }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 2px 12px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: 1px solid #65ffcc88;
+        border-radius: 8px;
+        background: #63ffd51a;
+        color: #65ffcc;
+        box-shadow: 0 0 22px #35efb22b;
+        transform: rotate(-8deg);
+      }
+
+      .top-note {
+        color: #93a6c1;
+        font-size: 12px;
+        letter-spacing: .04em;
+      }
+
+      .screen {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #5b7698;
+        border-radius: 18px;
+        background: #0c1222;
+        box-shadow: 0 30px 90px #0008, 0 0 55px #24d8c214;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 900 / 500;
+        touch-action: manipulation;
+        outline: none;
+      }
+
+      .bottom-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 13px 3px 0;
+        color: #9cacc4;
+        font-size: 12px;
+        letter-spacing: .02em;
+      }
+
+      .bottom-bar strong { color: #e7f2ff; font-weight: 700; }
+      .accent { color: #65ffcc; }
+
+      @media (max-width: 600px) {
+        body { padding: 16px 10px; }
+        .topbar { margin-bottom: 9px; }
+        .top-note { display: none; }
+        .screen { border-radius: 12px; }
+        .bottom-bar { font-size: 10px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">↗</span> Jumping Cube <span class="accent">Deluxe</span></div>
+        <div class="top-note">A neon run through five worlds</div>
+      </header>
+      <div class="screen">
+        <canvas id="game" width="900" height="500" tabindex="0" aria-label="Jumping Cube Deluxe game. Press Space or click to play and jump."></canvas>
+      </div>
+      <footer class="bottom-bar">
+        <span><strong>SPACE</strong> / <strong>CLICK</strong> to jump · hold to fly</span>
+        <span>Collect <strong class="accent">coins</strong> · avoid the spikes</span>
+      </footer>
+    </main>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const canvas = document.querySelector("#game");
+        const ctx = canvas.getContext("2d");
+        const WIDTH = canvas.width;
+        const HEIGHT = canvas.height;
+        const FLOOR = 420;
+        const PLAYER_SIZE = 40;
+        const LEVEL_LENGTH = 7400;
+
+        const objects = [
+          { type: "spike", x: 500 }, { type: "spike", x: 800 },
+          { type: "spike", x: 1300 }, { type: "spike", x: 2000 },
+          { type: "spike", x: 2700 },
+          { type: "orb", x: 1050, y: 280 },
+          { type: "coin", x: 1450, y: 220 }, { type: "coin", x: 2800, y: 140 },
+          { type: "coin", x: 3600, y: 200 }, { type: "coin", x: 7000, y: 200 },
+          { type: "portal", mode: "wave", x: 1800 },
+          { type: "waveBlock", x: 2200, y: 80 }, { type: "waveBlock", x: 2500, y: 350 },
+          { type: "portal", mode: "ship", x: 3000 },
+          { type: "shipBlock", x: 3300, y: 200, w: 30, h: 150 },
+          { type: "shipBlock", x: 3650, y: 300, w: 30, h: 150 },
+          { type: "shipBlock", x: 4000, y: 100, w: 30, h: 200 },
+          { type: "portal", mode: "ball", x: 4400 },
+          { type: "ballBlock", x: 4700, y: 300, w: 40, h: 40 },
+          { type: "ballBlock", x: 5000, y: 200, w: 40, h: 40 },
+          { type: "ballBlock", x: 5300, y: 350, w: 40, h: 40 },
+          { type: "portal", mode: "gravity", x: 5700 },
+          { type: "gravityBlock", x: 6000, y: 50, w: 60, h: 30 },
+          { type: "gravityBlock", x: 6300, y: 380, w: 60, h: 30 },
+          { type: "gravityBlock", x: 6600, y: 120, w: 60, h: 30 }
+        ];
+
+        const colors = {
+          cube: "#65ffcc", wave: "#55eaff", ship: "#ffbd59",
+          ball: "#ff70b7", gravity: "#d68aff"
+        };
+        const player = { x: 120, y: 380, w: PLAYER_SIZE, h: PLAYER_SIZE, vy: 0, vx: 0, rotation: 0 };
+        let state = "menu";
+        let mode = "cube";
+        let camera = 0;
+        let best = readBest();
+        let coins = 0;
+        let waveY = 250;
+        let gravityDirection = 1;
+        let holding = false;
+        let keyHeld = false;
+        let previousTime = 0;
+        let messageTimer = 0;
+
+        function readBest() {
+          try {
+            return Number(localStorage.getItem("jumping-cube-best")) || 0;
+          } catch {
+            return 0;
+          }
+        }
+
+        function reset() {
+          camera = 0;
+          mode = "cube";
+          coins = 0;
+          waveY = 250;
+          gravityDirection = 1;
+          player.x = 120;
+          player.y = 380;
+          player.vy = 0;
+          player.vx = 0;
+          player.rotation = 0;
+          objects.forEach(object => { object.collected = false; });
+        }
+
+        function startOrJump() {
+          if (state === "menu") {
+            reset();
+            state = "playing";
+            return;
+          }
+          if (state === "over" || state === "won") {
+            reset();
+            state = "playing";
+            return;
+          }
+          if (mode === "cube" && player.y >= FLOOR - player.h - 0.1) {
+            player.vy = -12;
+          } else if (mode === "ship") {
+            player.vy = -8;
+          } else if (mode === "ball" && player.y >= FLOOR - player.h - 0.1) {
+            player.vy = -11;
+            player.vx = 3.5;
+          } else if (mode === "gravity") {
+            gravityDirection *= -1;
+          }
+        }
+
+        function onKeyDown(event) {
+          if (event.code !== "Space" && event.code !== "ArrowUp") return;
+          event.preventDefault();
+          holding = true;
+          if (!keyHeld) startOrJump();
+          keyHeld = true;
+        }
+
+        function onKeyUp(event) {
+          if (event.code !== "Space" && event.code !== "ArrowUp") return;
+          holding = false;
+          keyHeld = false;
+        }
+
+        document.addEventListener("keydown", onKeyDown);
+        document.addEventListener("keyup", onKeyUp);
+        window.addEventListener("blur", () => { holding = false; keyHeld = false; });
+        canvas.addEventListener("pointerdown", event => {
+          event.preventDefault();
+          canvas.focus();
+          holding = true;
+          startOrJump();
+        });
+        window.addEventListener("pointerup", () => { holding = false; });
+
+        function overlaps(ax, ay, aw, ah, bx, by, bw, bh) {
+          return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+        }
+
+        function update(delta) {
+          if (state !== "playing") return;
+          const step = Math.min(delta, 2.2);
+          camera += 4 * step;
+          messageTimer = Math.max(0, messageTimer - delta);
+          best = Math.max(best, Math.floor(camera));
+
+          if (mode === "cube") {
+            player.vy += 0.7 * step;
+            player.y += player.vy * step;
+            if (player.y > FLOOR - player.h) {
+              player.y = FLOOR - player.h;
+              player.vy = 0;
+            }
+            player.rotation += 6 * step;
+          } else if (mode === "wave") {
+            waveY += (holding ? -5 : 5) * step;
+            if (waveY < 8 || waveY > HEIGHT - 25) state = "over";
+          } else if (mode === "ship") {
+            player.vy += 0.25 * step;
+            if (holding) player.vy -= 0.6 * step;
+            player.y += player.vy * step;
+            player.y = Math.max(0, Math.min(HEIGHT - player.h, player.y));
+            if (player.y === 0 || player.y === HEIGHT - player.h) player.vy = 0;
+            player.x = 120;
+          } else if (mode === "ball") {
+            player.vy += 0.8 * step;
+            player.y += player.vy * step;
+            player.x += player.vx * step;
+            player.vx *= Math.pow(0.99, step);
+            if (player.y > FLOOR - player.h) {
+              player.y = FLOOR - player.h;
+              player.vy = -player.vy * 0.6;
+              if (Math.abs(player.vy) < 0.8) player.vy = 0;
+              player.vx *= Math.pow(0.97, step);
+            }
+            if (player.x < 20) { player.x = 20; player.vx = Math.abs(player.vx) * 0.5; }
+            if (player.x > WIDTH - player.w - 20) {
+              player.x = WIDTH - player.w - 20;
+              player.vx = -Math.abs(player.vx) * 0.5;
+            }
+          } else if (mode === "gravity") {
+            player.vy += 0.7 * gravityDirection * step;
+            player.y += player.vy * step;
+            if (player.y > FLOOR - player.h) {
+              player.y = FLOOR - player.h;
+              if (gravityDirection > 0) player.vy = 0;
+            }
+            if (player.y < 0) {
+              player.y = 0;
+              if (gravityDirection < 0) player.vy = 0;
+            }
+            player.x = 120;
+            player.rotation += 8 * step;
+          }
+
+          for (const object of objects) {
+            const screenX = object.x - camera;
+            if (object.type === "coin" && !object.collected) {
+              const centerY = mode === "wave" ? waveY + 10 : player.y + player.h / 2;
+              if (Math.abs(player.x + player.w / 2 - screenX) < 30 &&
+                  Math.abs(centerY - object.y) < 40) {
+                object.collected = true;
+                coins++;
+              }
+            }
+
+            if (object.type === "orb" && mode === "cube" && holding &&
+                overlaps(player.x, player.y, player.w, player.h, screenX - 14, object.y - 14, 28, 28)) {
+              player.vy = -18;
+            }
+
+            if (object.type === "portal" && Math.abs(screenX - player.x) < 30 && mode !== object.mode) {
+              mode = object.mode;
+              if (mode === "wave") waveY = player.y + player.h / 2;
+              if (mode === "ship") { player.vy = 0; player.y = 250; }
+              if (mode === "ball") { player.vy = 0; player.vx = 2; player.y = FLOOR - player.h; }
+              if (mode === "gravity") { player.vy = 0; player.y = 200; gravityDirection = 1; }
+              messageTimer = 80;
+            }
+
+            if (object.type === "spike") {
+              if (mode === "wave") {
+                if (waveY + 10 > 390 && waveY + 10 < 430 &&
+                    player.x + 25 > screenX && player.x < screenX + 30) state = "over";
+              } else if (overlaps(player.x, player.y, player.w, player.h, screenX, 390, 30, 30)) {
+                state = "over";
+              }
+            }
+
+            if (object.type === "waveBlock" && mode === "wave" &&
+                overlaps(player.x, waveY, 25, 20, screenX, object.y, 50, 50)) state = "over";
+
+            if ((object.type === "shipBlock" && mode === "ship") ||
+                (object.type === "gravityBlock" && mode === "gravity")) {
+              if (overlaps(player.x, player.y, player.w, player.h, screenX, object.y, object.w, object.h)) {
+                state = "over";
+              }
+            }
+
+            if (object.type === "ballBlock" && mode === "ball" &&
+                overlaps(player.x, player.y, player.w, player.h, screenX, object.y, object.w, object.h)) {
+              const overlapX = Math.min(player.x + player.w, screenX + object.w) - Math.max(player.x, screenX);
+              const overlapY = Math.min(player.y + player.h, object.y + object.h) - Math.max(player.y, object.y);
+              if (overlapX < overlapY) {
+                if (player.x < screenX) player.x = screenX - player.w;
+                else player.x = screenX + object.w;
+                player.vx = -player.vx * 0.8;
+              } else if (player.y < object.y) {
+                player.y = object.y - player.h;
+                player.vy = -Math.abs(player.vy) * 0.8;
+              } else {
+                player.y = object.y + object.h;
+                player.vy = Math.abs(player.vy) * 0.8;
+              }
+            }
+          }
+
+          if (camera >= LEVEL_LENGTH) {
+            state = "won";
+            saveBest();
+          }
+          if (state === "over") saveBest();
+        }
+
+        function saveBest() {
+          try {
+            localStorage.setItem("jumping-cube-best", String(best));
+          } catch {
+            // The score remains available for this session when storage is disabled.
+          }
+        }
+
+        function roundedRect(x, y, width, height, radius) {
+          ctx.beginPath();
+          ctx.roundRect(x, y, width, height, radius);
+        }
+
+        function drawBackground() {
+          const gradient = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+          gradient.addColorStop(0, "#172b50");
+          gradient.addColorStop(0.64, "#11192d");
+          gradient.addColorStop(1, "#090d18");
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+          ctx.fillStyle = "#b9d8ff";
+          for (let i = 0; i < 48; i++) {
+            const x = (i * 197 + 31 - camera * 0.12) % WIDTH;
+            const y = (i * 83 + 27) % 310;
+            ctx.globalAlpha = 0.22 + ((i * 7) % 7) / 18;
+            ctx.fillRect(x, y, i % 5 === 0 ? 2 : 1, i % 5 === 0 ? 2 : 1);
+          }
+          ctx.globalAlpha = 1;
+
+          ctx.strokeStyle = "#83a8dc0c";
+          ctx.lineWidth = 1;
+          const gridOffset = -(camera * 0.35 % 45);
+          for (let x = gridOffset; x < WIDTH; x += 45) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, FLOOR);
+            ctx.stroke();
+          }
+          for (let y = 30; y < FLOOR; y += 45) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(WIDTH, y);
+            ctx.stroke();
+          }
+        }
+
+        function drawPortal(x, objectMode) {
+          const color = colors[objectMode];
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 20;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.ellipse(x, 250, 22, 38, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+          ctx.fillStyle = "#f4f7ff";
+          ctx.font = "700 10px ui-sans-serif, system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(objectMode.toUpperCase(), x, 253);
+        }
+
+        function drawObjects() {
+          for (const object of objects) {
+            const x = object.x - camera;
+            if (x < -100 || x > WIDTH + 100) continue;
+
+            if (object.type === "spike") {
+              ctx.save();
+              ctx.shadowColor = "#ff557a";
+              ctx.shadowBlur = 14;
+              ctx.fillStyle = "#ff557a";
+              ctx.beginPath();
+              ctx.moveTo(x, FLOOR);
+              ctx.lineTo(x + 15, 390);
+              ctx.lineTo(x + 30, FLOOR);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            } else if (object.type === "orb") {
+              ctx.save();
+              ctx.shadowColor = "#ffe66e";
+              ctx.shadowBlur = 16;
+              ctx.fillStyle = "#ffe66e";
+              ctx.beginPath();
+              ctx.arc(x, object.y, 10, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            } else if (object.type === "coin" && !object.collected) {
+              ctx.save();
+              ctx.shadowColor = "#ffd76a";
+              ctx.shadowBlur = 15;
+              ctx.fillStyle = "#ffd76a";
+              ctx.beginPath();
+              ctx.arc(x, object.y, 9, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = "#fff4c2";
+              ctx.beginPath();
+              ctx.arc(x - 2.5, object.y - 2.5, 2.5, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            } else if (object.type === "portal") {
+              drawPortal(x, object.mode);
+            } else {
+              const palette = {
+                waveBlock: "#db6fff", shipBlock: "#ab82ff",
+                ballBlock: "#59baff", gravityBlock: "#d674ff"
+              };
+              const width = object.w || 50;
+              const height = object.h || 50;
+              ctx.save();
+              ctx.shadowColor = palette[object.type];
+              ctx.shadowBlur = 15;
+              ctx.fillStyle = `${palette[object.type]}30`;
+              ctx.strokeStyle = palette[object.type];
+              ctx.lineWidth = 2;
+              roundedRect(x, object.y, width, height, 5);
+              ctx.fill();
+              ctx.stroke();
+              ctx.restore();
+            }
+          }
+        }
+
+        function drawPlayer() {
+          if (mode === "wave") {
+            ctx.save();
+            ctx.shadowColor = colors.wave;
+            ctx.shadowBlur = 18;
+            ctx.fillStyle = colors.wave;
+            ctx.beginPath();
+            ctx.moveTo(player.x, waveY);
+            ctx.lineTo(player.x + 26, waveY + 10);
+            ctx.lineTo(player.x, waveY + 20);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = "#55eaff55";
+            ctx.beginPath();
+            ctx.moveTo(player.x - 16, waveY - 5);
+            ctx.lineTo(player.x - 5, waveY + 5);
+            ctx.lineTo(player.x - 16, waveY + 15);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            return;
+          }
+
+          ctx.save();
+          ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
+          const currentColor = colors[mode];
+          ctx.shadowColor = currentColor;
+          ctx.shadowBlur = 20;
+          ctx.fillStyle = currentColor;
+
+          if (mode === "ship") {
+            ctx.rotate(Math.max(-0.65, Math.min(0.65, player.vy * 0.055)));
+            ctx.beginPath();
+            ctx.moveTo(21, 0);
+            ctx.lineTo(-16, -14);
+            ctx.lineTo(-11, 0);
+            ctx.lineTo(-16, 14);
+            ctx.closePath();
+            ctx.fill();
+          } else if (mode === "ball") {
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = "#fff9";
+            ctx.beginPath();
+            ctx.arc(-6, -7, 5, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            ctx.rotate(player.rotation * Math.PI / 180);
+            ctx.fillRect(-20, -20, 40, 40);
+            if (mode === "gravity") {
+              ctx.shadowBlur = 0;
+              ctx.fillStyle = "#fff";
+              ctx.font = "bold 18px ui-sans-serif, system-ui, sans-serif";
+              ctx.textAlign = "center";
+              ctx.fillText(gravityDirection > 0 ? "↓" : "↑", 0, 6);
+            }
+          }
+          ctx.restore();
+        }
+
+        function drawHud() {
+          ctx.fillStyle = "#f4f7ff";
+          ctx.textAlign = "left";
+          ctx.font = "700 14px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText(`COINS  ${coins}`, 24, 34);
+          ctx.fillStyle = "#afc0da";
+          ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText(`BEST  ${best}`, 24, 54);
+
+          ctx.textAlign = "right";
+          ctx.fillStyle = colors[mode];
+          ctx.font = "800 12px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText(mode.toUpperCase(), 870, 34);
+          ctx.textAlign = "left";
+
+          roundedRect(250, 22, 400, 7, 4);
+          ctx.fillStyle = "#ffffff22";
+          ctx.fill();
+          roundedRect(250, 22, Math.max(8, 400 * Math.min(camera / LEVEL_LENGTH, 1)), 7, 4);
+          ctx.fillStyle = "#65ffcc";
+          ctx.fill();
+        }
+
+        function drawOverlay(title, subtitle, color) {
+          ctx.fillStyle = "#050916bd";
+          ctx.fillRect(0, 0, WIDTH, HEIGHT);
+          ctx.textAlign = "center";
+          ctx.save();
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 24;
+          ctx.fillStyle = "#f4f8ff";
+          ctx.font = "800 52px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText(title, WIDTH / 2, 188);
+          ctx.restore();
+          ctx.fillStyle = "#c5d1e5";
+          ctx.font = "17px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText(subtitle, WIDTH / 2, 229);
+        }
+
+        function drawMenu() {
+          ctx.fillStyle = "#05091666";
+          ctx.fillRect(0, 0, WIDTH, HEIGHT);
+          ctx.textAlign = "center";
+          ctx.save();
+          ctx.shadowColor = "#65ffcc";
+          ctx.shadowBlur = 25;
+          ctx.fillStyle = "#65ffcc";
+          ctx.font = "900 51px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("JUMPING CUBE", WIDTH / 2, 145);
+          ctx.restore();
+          ctx.fillStyle = "#edf5ff";
+          ctx.font = "800 20px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("DELUXE", WIDTH / 2, 177);
+
+          roundedRect(335, 218, 230, 58, 13);
+          ctx.fillStyle = "#65ffcc";
+          ctx.fill();
+          ctx.fillStyle = "#071511";
+          ctx.font = "900 17px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("START RUN", WIDTH / 2, 254);
+
+          ctx.fillStyle = "#c2d0e6";
+          ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("Click or press SPACE to begin", WIDTH / 2, 326);
+          const labels = [
+            ["CUBE", colors.cube], ["WAVE", colors.wave], ["SHIP", colors.ship],
+            ["BALL", colors.ball], ["GRAVITY", colors.gravity]
+          ];
+          let x = WIDTH / 2 - 180;
+          for (const [label, color] of labels) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, 371, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#c2d0e6";
+            ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText(label, x + 10, 375);
+            x += label === "GRAVITY" ? 94 : 74;
+          }
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#8192ae";
+          ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("Every world has its own way to move. Keep your eyes on the spikes.", WIDTH / 2, 423);
+        }
+
+        function draw() {
+          drawBackground();
+          if (state === "menu") {
+            drawMenu();
+            return;
+          }
+
+          ctx.fillStyle = "#202c41";
+          ctx.fillRect(0, FLOOR, WIDTH, HEIGHT - FLOOR);
+          ctx.fillStyle = "#65ffcc";
+          ctx.globalAlpha = 0.56;
+          ctx.fillRect(0, FLOOR, WIDTH, 2);
+          ctx.globalAlpha = 1;
+          drawObjects();
+          drawPlayer();
+          drawHud();
+
+          if (messageTimer > 0 && state === "playing") {
+            ctx.textAlign = "center";
+            ctx.fillStyle = colors[mode];
+            ctx.font = "800 14px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText(`${mode.toUpperCase()} MODE`, WIDTH / 2, 81);
+          }
+          if (state === "over") drawOverlay("RUN OVER", "Click or press SPACE to try again", "#ff557a");
+          if (state === "won") drawOverlay("LEVEL CLEAR", `You made it through with ${coins} coin${coins === 1 ? "" : "s"} · click to play again`, "#65ffcc");
+        }
+
+        function frame(time) {
+          const delta = previousTime ? Math.min((time - previousTime) / (1000 / 60), 2.2) : 1;
+          previousTime = time;
+          update(delta);
+          draw();
+          requestAnimationFrame(frame);
+        }
+
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>
