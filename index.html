@@ -135,6 +135,7 @@
         const HOME_BUTTON = { x: 790, y: 52, w: 88, h: 32 };
         const LEVEL_ONE_LENGTH = 7400;
         const LEVEL_TWO_LENGTH = 5200;
+        const LEVEL_THREE_LENGTH = 6000;
 
         const levelOneObjects = [
           { type: "spike", x: 500 }, { type: "spike", x: 800 },
@@ -179,6 +180,31 @@
           { type: "tramBlock", x: 4800, y: 335, w: 34, h: 85 }
         ];
 
+        const levelThreeObjects = [
+          { type: "spike", x: 450 }, { type: "spike", x: 1180 },
+          { type: "spike", x: 2080 }, { type: "spike", x: 2980 },
+          { type: "spike", x: 3850 }, { type: "spike", x: 5300 },
+          { type: "coin", x: 720, y: 240 }, { type: "coin", x: 1740, y: 175 },
+          { type: "coin", x: 3420, y: 165 }, { type: "coin", x: 4750, y: 180 },
+          { type: "jumpPad", x: 760, y: 405 },
+          { type: "portal", mode: "wave", x: 850 },
+          { type: "waveBlock", x: 1080, y: 70 },
+          { type: "waveBlock", x: 1320, y: 335 },
+          { type: "portal", mode: "ship", x: 1650 },
+          { type: "shipBlock", x: 1880, y: 0, w: 35, h: 145 },
+          { type: "shipBlock", x: 2050, y: 270, w: 35, h: 150 },
+          { type: "portal", mode: "ball", x: 2500 },
+          { type: "ballBlock", x: 2730, y: 300, w: 45, h: 45 },
+          { type: "ballBlock", x: 2920, y: 190, w: 45, h: 45 },
+          { type: "portal", mode: "gravity", x: 3400 },
+          { type: "gravityBlock", x: 3620, y: 0, w: 70, h: 35 },
+          { type: "gravityBlock", x: 3800, y: 375, w: 70, h: 35 },
+          { type: "portal", mode: "tram", x: 4300 },
+          { type: "tramBlock", x: 4610, y: 0, w: 36, h: 85 },
+          { type: "tramBlock", x: 4870, y: 335, w: 36, h: 85 },
+          { type: "tramBlock", x: 5100, y: 0, w: 36, h: 85 }
+        ];
+
         const colors = {
           cube: "#65ffcc", wave: "#55eaff", ship: "#ffbd59",
           ball: "#ff70b7", gravity: "#d68aff", tram: "#ff8c56"
@@ -186,6 +212,12 @@
         let objects = levelOneObjects;
         let level = 1;
         let selectedLevel = 1;
+        const speedLevels = [
+          { name: "CHILL", multiplier: 0.75 },
+          { name: "NORMAL", multiplier: 1 },
+          { name: "TURBO", multiplier: 1.3 }
+        ];
+        let selectedSpeed = 1;
         let tramAtTop = false;
         let levelLength = LEVEL_ONE_LENGTH;
         const player = { x: 120, y: 380, w: PLAYER_SIZE, h: PLAYER_SIZE, vy: 0, vx: 0, rotation: 0 };
@@ -224,13 +256,14 @@
           player.vy = 0;
           player.vx = 0;
           player.rotation = 0;
-          [...levelOneObjects, ...levelTwoObjects].forEach(object => { object.collected = false; });
+          [...levelOneObjects, ...levelTwoObjects, ...levelThreeObjects]
+            .forEach(object => { object.collected = false; });
         }
 
-        function beginLevelTwo() {
-          level = 2;
-          levelLength = LEVEL_TWO_LENGTH;
-          objects = levelTwoObjects;
+        function beginLevel(targetLevel) {
+          level = targetLevel;
+          levelLength = [0, LEVEL_ONE_LENGTH, LEVEL_TWO_LENGTH, LEVEL_THREE_LENGTH][level];
+          objects = [null, levelOneObjects, levelTwoObjects, levelThreeObjects][level];
           camera = 0;
           mode = "cube";
           waveY = 250;
@@ -246,17 +279,16 @@
         function startOrJump() {
           if (state === "menu") {
             reset();
-            if (selectedLevel === 2) beginLevelTwo();
-            else state = "playing";
+            beginLevel(selectedLevel);
             return;
           }
           if (state === "levelTransition") {
-            beginLevelTwo();
+            beginLevel(level + 1);
             return;
           }
           if (state === "over" || state === "won") {
             reset();
-            state = "playing";
+            beginLevel(selectedLevel);
             return;
           }
           if (mode === "cube" && player.y >= FLOOR - player.h - 0.1) {
@@ -283,7 +315,13 @@
           }
           if (state === "menu" && (event.code === "ArrowLeft" || event.code === "ArrowRight")) {
             event.preventDefault();
-            selectedLevel = selectedLevel === 1 ? 2 : 1;
+            const direction = event.code === "ArrowRight" ? 1 : -1;
+            selectedLevel = (selectedLevel - 1 + direction + 3) % 3 + 1;
+            return;
+          }
+          if (state === "menu" && (event.code === "ArrowUp" || event.code === "ArrowDown")) {
+            event.preventDefault();
+            selectedSpeed = (selectedSpeed + (event.code === "ArrowDown" ? 1 : speedLevels.length - 1)) % speedLevels.length;
             return;
           }
           if (event.code !== "Space" && event.code !== "ArrowUp") return;
@@ -315,15 +353,15 @@
             return;
           }
           if (state === "menu") {
-            if (y >= 226 && y <= 290 && x >= 270 && x <= 444) {
-              selectedLevel = 1;
+            if (y >= 211 && y <= 274 && x >= 183 && x <= 717) {
+              selectedLevel = Math.min(3, Math.max(1, Math.floor((x - 183) / 178) + 1));
               return;
             }
-            if (y >= 226 && y <= 290 && x >= 456 && x <= 630) {
-              selectedLevel = 2;
+            if (y >= 294 && y <= 342 && x >= 228 && x <= 672) {
+              selectedSpeed = Math.min(speedLevels.length - 1, Math.floor((x - 228) / 148));
               return;
             }
-            if (y >= 307 && y <= 362 && x >= 335 && x <= 565) {
+            if (y >= 352 && y <= 411 && x >= 335 && x <= 565) {
               startOrJump();
               return;
             }
@@ -346,11 +384,13 @@
 
         function update(delta) {
           if (state !== "playing") return;
-          const step = Math.min(delta, 2.2);
+          const step = Math.min(delta * speedLevels[selectedSpeed].multiplier, 2.2);
           camera += 4 * step;
           messageTimer = Math.max(0, messageTimer - delta);
           const previousPlayerY = player.y;
-          best = Math.max(best, Math.floor((level === 2 ? LEVEL_ONE_LENGTH : 0) + camera));
+          const distanceBeforeLevel = level === 1 ? 0 :
+            level === 2 ? LEVEL_ONE_LENGTH : LEVEL_ONE_LENGTH + LEVEL_TWO_LENGTH;
+          best = Math.max(best, Math.floor(distanceBeforeLevel + camera));
 
           if (mode === "cube") {
             player.vy += 0.7 * step;
@@ -484,7 +524,7 @@
           }
 
           if (camera >= levelLength) {
-            state = level === 1 ? "levelTransition" : "won";
+            state = level < 3 ? "levelTransition" : "won";
             if (state === "won") saveBest();
           }
           if (state === "over") saveBest();
@@ -780,15 +820,16 @@
 
           ctx.fillStyle = "#a9bad3";
           ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("CHOOSE YOUR LEVEL", WIDTH / 2, 210);
+          ctx.fillText("CHOOSE YOUR LEVEL", WIDTH / 2, 198);
 
           const levelCards = [
-            { number: 1, x: 270, color: colors.cube, detail: "FIVE WORLDS" },
-            { number: 2, x: 456, color: colors.tram, detail: "JUMP PADS + TRAM" }
+            { number: 1, x: 189, color: colors.cube, detail: "FIVE WORLDS" },
+            { number: 2, x: 367, color: colors.tram, detail: "JUMP PADS + TRAM" },
+            { number: 3, x: 545, color: colors.wave, detail: "ALL SIX MODES" }
           ];
           for (const card of levelCards) {
             const selected = selectedLevel === card.number;
-            roundedRect(card.x, 226, 174, 64, 10);
+            roundedRect(card.x, 210, 166, 62, 10);
             ctx.fillStyle = selected ? `${card.color}24` : "#ffffff08";
             ctx.fill();
             ctx.lineWidth = selected ? 2 : 1;
@@ -796,22 +837,46 @@
             ctx.stroke();
             ctx.fillStyle = selected ? card.color : "#c2d0e6";
             ctx.font = "800 14px ui-sans-serif, system-ui, sans-serif";
-            ctx.fillText(`LEVEL ${card.number}`, card.x + 87, 251);
+            ctx.fillText(`LEVEL ${card.number}`, card.x + 83, 234);
             ctx.fillStyle = "#c2d0e6";
             ctx.font = "700 9px ui-sans-serif, system-ui, sans-serif";
-            ctx.fillText(card.detail, card.x + 87, 272);
+            ctx.fillText(card.detail, card.x + 83, 255);
           }
 
-          roundedRect(335, 307, 230, 55, 13);
+          ctx.fillStyle = "#a9bad3";
+          ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("GAME SPEED", WIDTH / 2, 295);
+          const speedButtons = [
+            { index: 0, x: 234, color: "#55eaff" },
+            { index: 1, x: 382, color: "#65ffcc" },
+            { index: 2, x: 530, color: "#ff8c56" }
+          ];
+          for (const button of speedButtons) {
+            const selected = selectedSpeed === button.index;
+            roundedRect(button.x, 302, 136, 40, 9);
+            ctx.fillStyle = selected ? `${button.color}24` : "#ffffff08";
+            ctx.fill();
+            ctx.lineWidth = selected ? 2 : 1;
+            ctx.strokeStyle = selected ? button.color : "#ffffff2b";
+            ctx.stroke();
+            ctx.fillStyle = selected ? button.color : "#c2d0e6";
+            ctx.font = "800 11px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText(speedLevels[button.index].name, button.x + 68, 327);
+            ctx.fillStyle = "#a9bad3";
+            ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText(`${speedLevels[button.index].multiplier}x`, button.x + 68, 338);
+          }
+
+          roundedRect(335, 352, 230, 55, 13);
           ctx.fillStyle = "#65ffcc";
           ctx.fill();
           ctx.fillStyle = "#071511";
           ctx.font = "900 17px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText(`PLAY LEVEL ${selectedLevel}`, WIDTH / 2, 341);
+          ctx.fillText(`PLAY LEVEL ${selectedLevel}`, WIDTH / 2, 386);
 
           ctx.fillStyle = "#c2d0e6";
-          ctx.font = "14px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("Click PLAY or press SPACE · ← / → to choose", WIDTH / 2, 390);
+          ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
+          ctx.fillText("Click PLAY or press SPACE · ← / → level · ↑ / ↓ speed", WIDTH / 2, 432);
           const labels = [
             ["CUBE", colors.cube], ["WAVE", colors.wave], ["SHIP", colors.ship],
             ["BALL", colors.ball], ["GRAVITY", colors.gravity], ["TRAM", colors.tram]
@@ -820,18 +885,15 @@
           for (const [label, color] of labels) {
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(x, 421, 4, 0, Math.PI * 2);
+            ctx.arc(x, 469, 4, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = "#c2d0e6";
             ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
             ctx.textAlign = "left";
-            ctx.fillText(label, x + 10, 425);
+            ctx.fillText(label, x + 10, 473);
             x += label === "GRAVITY" ? 94 : 74;
           }
           ctx.textAlign = "center";
-          ctx.fillStyle = "#8192ae";
-          ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("Jump pads launch you high · watch out for spikes.", WIDTH / 2, 466);
         }
 
         function draw() {
@@ -843,7 +905,7 @@
 
           ctx.fillStyle = "#202c41";
           ctx.fillRect(0, FLOOR, WIDTH, HEIGHT - FLOOR);
-          ctx.fillStyle = level === 2 ? "#ff8c56" : "#65ffcc";
+          ctx.fillStyle = level === 2 ? "#ff8c56" : level === 3 ? "#55eaff" : "#65ffcc";
           ctx.globalAlpha = 0.56;
           ctx.fillRect(0, FLOOR, WIDTH, 2);
           ctx.globalAlpha = 1;
@@ -866,7 +928,7 @@
           ctx.textAlign = "left";
           ctx.fillStyle = "#afc0da";
           ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText(`LEVEL ${level}`, 24, 76);
+          ctx.fillText(`LEVEL ${level} · ${speedLevels[selectedSpeed].name} SPEED`, 24, 76);
           if (mode === "tram" && state === "playing") {
             ctx.textAlign = "center";
             ctx.fillStyle = colors.tram;
@@ -881,8 +943,12 @@
             ctx.fillText(`${mode.toUpperCase()} MODE`, WIDTH / 2, 81);
           }
           if (state === "over") drawOverlay("RUN OVER", "Click or press SPACE to try again", "#ff557a");
-          if (state === "levelTransition") drawOverlay("LEVEL ONE CLEAR", "Click or press SPACE to start Level Two", "#65ffcc");
-          if (state === "won") drawOverlay("ALL LEVELS CLEAR", `You made it through with ${coins} coin${coins === 1 ? "" : "s"} · click to play again`, "#65ffcc");
+          if (state === "levelTransition") drawOverlay(
+            `LEVEL ${level} CLEAR`, `Click or press SPACE to start Level ${level + 1}`, "#65ffcc"
+          );
+          if (state === "won") drawOverlay(
+            `LEVEL ${level} CLEAR`, `You finished with ${coins} coin${coins === 1 ? "" : "s"} · click to play again`, "#65ffcc"
+          );
           drawHomeButton();
         }
 
