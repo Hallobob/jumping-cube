@@ -140,6 +140,7 @@
         const LEVEL_CARD_X = [65, 255, 445, 635];
         const BALL_HOLD_BOOST = 0.45;
         const BALL_MAX_HOLD = 24;
+        const NOVA_DASH_COOLDOWN = 18;
 
         const levelOneObjects = [
           { type: "spike", x: 500 }, { type: "spike", x: 800 },
@@ -361,7 +362,7 @@
             player.vy = 0;
           } else if (mode === "nova" && novaCooldown <= 0) {
             player.vy = -10;
-            novaCooldown = 36;
+            novaCooldown = NOVA_DASH_COOLDOWN;
           } else if (mode === "gravity") {
             gravityDirection *= -1;
           }
