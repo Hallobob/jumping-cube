@@ -228,6 +228,8 @@
         let coins = 0;
         let waveY = 250;
         let gravityDirection = 1;
+        const movementTrail = [];
+        const TRAIL_LIFETIME = 24;
         let holding = false;
         let keyHeld = false;
         let previousTime = 0;
@@ -250,6 +252,7 @@
           coins = 0;
           waveY = 250;
           gravityDirection = 1;
+          movementTrail.length = 0;
           tramAtTop = false;
           player.x = 120;
           player.y = 380;
@@ -268,6 +271,7 @@
           mode = "cube";
           waveY = 250;
           gravityDirection = 1;
+          movementTrail.length = 0;
           tramAtTop = false;
           player.y = FLOOR - player.h;
           player.vy = 0;
@@ -294,7 +298,7 @@
           if (mode === "cube" && player.y >= FLOOR - player.h - 0.1) {
             player.vy = -12;
           } else if (mode === "ship") {
-            player.vy = -8;
+            player.vy = -5;
           } else if (mode === "ball" && player.y >= FLOOR - player.h - 0.1) {
             player.vy = -11;
             player.vx = 3.5;
@@ -385,6 +389,11 @@
         function update(delta) {
           if (state !== "playing") return;
           const step = Math.min(delta * speedLevels[selectedSpeed].multiplier, 2.2);
+          const previousMode = mode;
+          for (const point of movementTrail) point.age += delta;
+          while (movementTrail.length && movementTrail[0].age >= TRAIL_LIFETIME) {
+            movementTrail.shift();
+          }
           camera += 4 * step;
           messageTimer = Math.max(0, messageTimer - delta);
           const previousPlayerY = player.y;
@@ -408,8 +417,9 @@
             waveY += (holding ? -5 : 5) * step;
             if (waveY < 8 || waveY > HEIGHT - 25) state = "over";
           } else if (mode === "ship") {
-            player.vy += 0.25 * step;
-            if (holding) player.vy -= 0.6 * step;
+            player.vy += 0.22 * step;
+            if (holding) player.vy -= 0.38 * step;
+            player.vy = Math.max(-5, Math.min(5, player.vy));
             player.y += player.vy * step;
             player.y = Math.max(0, Math.min(HEIGHT - player.h, player.y));
             if (player.y === 0 || player.y === HEIGHT - player.h) player.vy = 0;
@@ -521,6 +531,16 @@
                 player.vy = Math.abs(player.vy) * 0.8;
               }
             }
+          }
+
+          if (mode !== previousMode) movementTrail.length = 0;
+          if (mode === "wave" || mode === "ship") {
+            movementTrail.push({
+              x: player.x + player.w / 2 + camera,
+              y: mode === "wave" ? waveY + 10 : player.y + player.h / 2,
+              age: 0,
+              color: colors[mode]
+            });
           }
 
           if (camera >= levelLength) {
@@ -669,6 +689,21 @@
           }
         }
 
+        function drawMovementTrail() {
+          ctx.save();
+          for (const point of movementTrail) {
+            const progress = point.age / TRAIL_LIFETIME;
+            const x = point.x - camera;
+            if (x < -10 || x > WIDTH + 10) continue;
+            ctx.globalAlpha = (1 - progress) * 0.45;
+            ctx.fillStyle = point.color;
+            ctx.beginPath();
+            ctx.arc(x, point.y, 1 + (1 - progress) * 4, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+        }
+
         function drawPlayer() {
           if (mode === "wave") {
             ctx.save();
@@ -700,12 +735,25 @@
           ctx.fillStyle = currentColor;
 
           if (mode === "ship") {
-            ctx.rotate(Math.max(-0.65, Math.min(0.65, player.vy * 0.055)));
+            ctx.rotate(Math.max(-0.25, Math.min(0.25, player.vy * 0.035)));
             ctx.beginPath();
-            ctx.moveTo(21, 0);
-            ctx.lineTo(-16, -14);
-            ctx.lineTo(-11, 0);
-            ctx.lineTo(-16, 14);
+            ctx.moveTo(-20, -3);
+            ctx.lineTo(20, -3);
+            ctx.lineTo(12, 12);
+            ctx.lineTo(-13, 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.strokeStyle = "#fff1c4";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-3, -3);
+            ctx.lineTo(-3, -19);
+            ctx.stroke();
+            ctx.fillStyle = "#fff1c4";
+            ctx.beginPath();
+            ctx.moveTo(-1, -17);
+            ctx.lineTo(11, -4);
+            ctx.lineTo(-1, -4);
             ctx.closePath();
             ctx.fill();
           } else if (mode === "ball") {
@@ -922,6 +970,7 @@
             }
             ctx.restore();
           }
+          drawMovementTrail();
           drawObjects();
           drawPlayer();
           drawHud();
