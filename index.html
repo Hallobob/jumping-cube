@@ -111,7 +111,7 @@
     <main class="game-shell">
       <header class="topbar">
         <div class="brand"><span class="brand-mark">↗</span> Jumping Cube <span class="accent">Deluxe</span></div>
-        <div class="top-note">Four levels · a hidden mode</div>
+        <div class="top-note">Four levels · Challenge Mode</div>
       </header>
       <div class="screen">
         <canvas id="game" width="900" height="500" tabindex="0" aria-label="Jumping Cube Deluxe game. Press Space or click to play and jump."></canvas>
@@ -138,8 +138,8 @@
         const LEVEL_THREE_LENGTH = 6000;
         const LEVEL_FOUR_LENGTH = 7600;
         const LEVEL_CARD_X = [65, 255, 445, 635];
-        const BALL_HOLD_BOOST = 0.4;
-        const BALL_MAX_HOLD = 18;
+        const BALL_HOLD_BOOST = 0.45;
+        const BALL_MAX_HOLD = 24;
 
         const levelOneObjects = [
           { type: "spike", x: 500 }, { type: "spike", x: 800 },
@@ -988,13 +988,13 @@
 
           ctx.fillStyle = "#a9bad3";
           ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText("CHOOSE YOUR LEVEL", WIDTH / 2, 198);
+          ctx.fillText("CHOOSE A LEVEL OR CHALLENGE MODE", WIDTH / 2, 198);
 
           const levelCards = [
-            { number: 1, x: LEVEL_CARD_X[0], color: colors.cube, detail: "FIVE WORLDS" },
-            { number: 2, x: LEVEL_CARD_X[1], color: colors.tram, detail: "JUMP PADS + TRAM" },
-            { number: 3, x: LEVEL_CARD_X[2], color: colors.wave, detail: "ALL SIX MODES" },
-            { number: 4, x: LEVEL_CARD_X[3], color: colors.nova, detail: "CHALLENGE + ???" }
+            { number: 1, title: "LEVEL 1", x: LEVEL_CARD_X[0], color: colors.cube, detail: "FIVE WORLDS" },
+            { number: 2, title: "LEVEL 2", x: LEVEL_CARD_X[1], color: colors.tram, detail: "JUMP PADS + TRAM" },
+            { number: 3, title: "LEVEL 3", x: LEVEL_CARD_X[2], color: colors.wave, detail: "ALL SIX MODES" },
+            { number: 4, title: "CHALLENGE MODE", x: LEVEL_CARD_X[3], color: colors.nova, detail: "LEVEL 4 · ??? MODE" }
           ];
           for (const card of levelCards) {
             const selected = selectedLevel === card.number;
@@ -1005,8 +1005,10 @@
             ctx.strokeStyle = selected ? card.color : "#ffffff2b";
             ctx.stroke();
             ctx.fillStyle = selected ? card.color : "#c2d0e6";
-            ctx.font = "800 14px ui-sans-serif, system-ui, sans-serif";
-            ctx.fillText(`LEVEL ${card.number}`, card.x + 83, 234);
+            ctx.font = card.number === 4
+              ? "800 12px ui-sans-serif, system-ui, sans-serif"
+              : "800 14px ui-sans-serif, system-ui, sans-serif";
+            ctx.fillText(card.title, card.x + 83, 234);
             ctx.fillStyle = "#c2d0e6";
             ctx.font = "700 9px ui-sans-serif, system-ui, sans-serif";
             ctx.fillText(card.detail, card.x + 83, 255);
@@ -1041,7 +1043,7 @@
           ctx.fill();
           ctx.fillStyle = "#071511";
           ctx.font = "900 17px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText(`PLAY LEVEL ${selectedLevel}`, WIDTH / 2, 386);
+          ctx.fillText(selectedLevel === 4 ? "PLAY CHALLENGE MODE" : `PLAY LEVEL ${selectedLevel}`, WIDTH / 2, 386);
 
           ctx.fillStyle = "#c2d0e6";
           ctx.font = "12px ui-sans-serif, system-ui, sans-serif";
@@ -1099,7 +1101,8 @@
           ctx.textAlign = "left";
           ctx.fillStyle = "#afc0da";
           ctx.font = "700 11px ui-sans-serif, system-ui, sans-serif";
-          ctx.fillText(`LEVEL ${level} · ${speedLevels[selectedSpeed].name} SPEED`, 24, 76);
+          const levelLabel = level === 4 ? "CHALLENGE MODE" : `LEVEL ${level}`;
+          ctx.fillText(`${levelLabel} · ${speedLevels[selectedSpeed].name} SPEED`, 24, 76);
           if (mode === "tram" && state === "playing") {
             ctx.textAlign = "center";
             ctx.fillStyle = colors.tram;
